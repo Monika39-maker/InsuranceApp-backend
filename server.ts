@@ -1,13 +1,15 @@
-import express, { Response, Request } from 'express';
+import express from 'express';
+import type { Response, Request } from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT
+const port = process.env.PORT || 3000;
 
 // Enable CORS
 app.use(cors());
@@ -25,7 +27,20 @@ const pool = new Pool({
   }
 });
 
-// Test database connec
+// Test database connection
+const testDatabaseConnection = async () => {
+  try {
+    const client = await pool.connect();
+    console.log('Successfully connected to the database');
+    const result = await client.query('SELECT NOW()');
+    console.log('Database time:', result.rows[0].now);
+    client.release();
+    return true;
+  } catch (err) {
+    console.error('Database connection error:', err);
+    return false;
+  }
+};
 
 // Types
 export type users = {
@@ -38,13 +53,41 @@ export type users = {
 
 // Get all events
 app.get('/users', async (req: Request, res: Response) => {
-  
   try {
-    const result = await pool.query('SELECT * FROM users');
-    console.log(res.json(result.rows));
+    // Only return non-sensitive fields
+    const result = await pool.query('SELECT id, full_name, role FROM users');
+    console.log('Retrieved users:', result.rows.length);
+    res.json(result.rows);
   } catch (err) {
-    console.error('Error fetching events:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching users:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch users',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    });
+  }
+});
+
+// Create a new user
+app.post('/users', async (req: Request, res: Response) => {
+  const { full_name, role } = req.body;
+
+  if (!full_name || !role) {
+    return res.status(400).json({ error: 'full_name and role are required' });
+  }
+
+  try {
+    // Password column exists in DB schema and is NOT NULL; store empty string when not provided
+    const password = '';
+    const insert = await pool.query(
+      'INSERT INTO users (full_name, role) VALUES ($1, $2) RETURNING id, full_name, role',
+      [full_name, role]
+    );
+
+    const created = insert.rows[0];
+    res.status(201).json(created);
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).json({ error: 'Failed to create user', details: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 
