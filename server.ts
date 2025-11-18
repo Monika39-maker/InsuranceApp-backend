@@ -91,8 +91,63 @@ app.post('/users', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/housepolicies', async (req: Request, res: Response) => {
+  try {
+    // Only return non-sensitive fields
+    const result = await pool.query('SELECT * FROM house_policies');
+    console.log('Retrieved users:', result.rows.length);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch users',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    });
+  }
+});
+
+// Get policies (basic list joining policies table)
+app.get('/policies', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, user_id, policy_type, policy_number, premium_cents, start_date, end_date, status
+       FROM policies`
+    );
+    console.log('Retrieved policies:', result.rows.length);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching policies:', err);
+    res.status(500).json({
+      error: 'Failed to fetch policies',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    });
+  }
+});
 
 
+
+
+// Get users with policy flags (has_house, has_motor)
+app.get('/users-with-policies', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.full_name, u.role,
+         BOOL_OR((p.policy_type)::text = 'HOUSE') AS has_house,
+         BOOL_OR((p.policy_type)::text = 'MOTOR') AS has_motor
+       FROM users u
+       LEFT JOIN policies p ON p.user_id = u.id
+       GROUP BY u.id, u.full_name, u.role`
+    );
+    console.log('Retrieved users-with-policies:', result.rows.length);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching users-with-policies:', err);
+    res.status(500).json({
+      error: 'Failed to fetch users with policies',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

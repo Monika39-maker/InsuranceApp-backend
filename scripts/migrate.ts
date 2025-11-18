@@ -2,11 +2,15 @@ import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 
 // Load env vars from Backend/.env
 dotenv.config();
 
 async function run() {
+  // __dirname is not defined in ES modules; derive it from import.meta.url
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
   const sqlPath = path.resolve(__dirname, '..', 'db', 'init.sql');
   const sql = fs.readFileSync(sqlPath, 'utf-8');
 
